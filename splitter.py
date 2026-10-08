@@ -34,3 +34,43 @@ def balances(expenses, people):
         for person, share in shares.items():
             net[person] -= share
     return net
+
+
+def validate_expense(expense):
+    """Check an incoming expense before it reaches the ledger.
+
+    Returns a list of human-readable problems; an empty list means it is valid.
+    Everything is reported at once so a client can fix a request in one go.
+    """
+    if not isinstance(expense, dict):
+        return ["expense must be a JSON object"]
+
+    errors = []
+
+    amount = expense.get("amount_cents")
+    if amount is None:
+        errors.append("amount_cents is required")
+    # bool is a subclass of int, and a float would break the integer-cents rule.
+    elif not isinstance(amount, int) or isinstance(amount, bool):
+        errors.append("amount_cents must be an integer number of cents")
+    elif amount <= 0:
+        errors.append("amount_cents must be greater than zero")
+
+    paid_by = expense.get("paid_by")
+    if paid_by is None:
+        errors.append("paid_by is required")
+    elif not isinstance(paid_by, str) or not paid_by.strip():
+        errors.append("paid_by must be a non-empty string")
+
+    participants = expense.get("participants")
+    if participants is None:
+        errors.append("participants is required")
+    elif not isinstance(participants, list) or not participants:
+        errors.append("participants must be a non-empty list")
+    elif not all(isinstance(p, str) and p.strip() for p in participants):
+        errors.append("participants must all be non-empty strings")
+    # Duplicates would collapse in split_evenly's dict and lose a share.
+    elif len(set(participants)) != len(participants):
+        errors.append("participants must not contain duplicates")
+
+    return errors
