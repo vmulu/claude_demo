@@ -41,3 +41,52 @@ def test_payer_is_credited_the_others_shares(client):
     body = client.get("/balances").get_json()
     assert body["balances"]["ana"] == 600
     assert body["balances"]["ben"] == -300
+
+
+def test_uneven_split_shares_sum_to_the_amount():
+    shares = split_evenly(1000, ["ana", "ben", "cal"])
+    assert sum(shares.values()) == 1000
+    assert shares == {"ana": 334, "ben": 333, "cal": 333}
+
+
+def test_uneven_split_remainder_does_not_depend_on_listing_order():
+    assert split_evenly(1001, ["cal", "ben", "ana"]) == {
+        "ana": 334,
+        "ben": 334,
+        "cal": 333,
+    }
+
+
+@pytest.mark.parametrize("amount", [1, 2, 999, 1000, 1001, 12345])
+@pytest.mark.parametrize("n", [1, 2, 3, 7])
+def test_shares_always_sum_and_differ_by_at_most_a_cent(amount, n):
+    shares = split_evenly(amount, [f"p{i}" for i in range(n)])
+    assert sum(shares.values()) == amount
+    assert max(shares.values()) - min(shares.values()) <= 1
+
+
+def test_duplicate_participants_are_rejected():
+    with pytest.raises(ValueError):
+        split_evenly(100, ["ana", "ana", "ben"])
+
+
+def test_balances_sum_to_zero_with_uneven_splits(client):
+    for expense in [
+        {"amount_cents": 1000, "paid_by": "ana", "participants": ["ana", "ben", "cal"]},
+        {"amount_cents": 1001, "paid_by": "ben", "participants": ["ana", "ben", "cal"]},
+        {"amount_cents": 77, "paid_by": "cal", "participants": ["ana", "ben"]},
+    ]:
+        assert client.post("/expenses", json=expense).status_code == 201
+    body = client.get("/balances").get_json()
+    assert sum(body["balances"].values()) == 0
+
+
+def test_posting_duplicate_participants_is_a_400_and_not_stored(client):
+    resp = client.post(
+        "/expenses",
+        json={"amount_cents": 100, "paid_by": "ana", "participants": ["ana", "ana"]},
+    )
+    assert resp.status_code == 400
+    balances_resp = client.get("/balances")
+    assert balances_resp.status_code == 200
+    assert balances_resp.get_json()["balances"] == {}

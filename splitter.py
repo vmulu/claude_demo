@@ -10,10 +10,22 @@ way a ledger stops balancing.
 def split_evenly(amount_cents, participants):
     """Divide one expense between the people who shared it.
 
-    Returns {person: cents_they_owe}.
+    Returns {person: cents_they_owe}. The shares always sum to exactly
+    amount_cents: when the amount doesn't divide evenly, the leftover cents go
+    one each to the first participants in sorted order, so no share differs
+    from another by more than a cent and the result doesn't depend on the order
+    participants were listed in.
+
+    Raises ValueError if a participant is listed twice, since it's ambiguous
+    whether they meant to take two shares or listed someone by mistake.
     """
-    share = amount_cents // len(participants)
-    return {person: share for person in participants}
+    if len(set(participants)) != len(participants):
+        raise ValueError("participants must not contain duplicates")
+    share, remainder = divmod(amount_cents, len(participants))
+    return {
+        person: share + (1 if i < remainder else 0)
+        for i, person in enumerate(sorted(participants))
+    }
 
 
 def balances(expenses, people):

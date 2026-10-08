@@ -10,7 +10,7 @@ import os
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request
 
-from splitter import balances
+from splitter import balances, split_evenly
 
 load_dotenv()
 
@@ -35,6 +35,12 @@ def create_app():
     @app.post("/expenses")
     def add_expense():
         body = request.get_json(silent=True) or {}
+        # Validate up front: a bad expense stored now would make every later
+        # GET /balances fail.
+        try:
+            split_evenly(body["amount_cents"], body["participants"])
+        except ValueError as exc:
+            return jsonify(ok=False, error=str(exc)), 400
         _expenses.append(
             {
                 "amount_cents": body["amount_cents"],
